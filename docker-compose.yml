@@ -1,0 +1,219 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # API GATEWAY & LOAD BALANCER (Nginx)
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: messenger_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app-node-1
+      - app-node-2
+      - frontend
+    networks:
+      - messenger-network
+    restart: always
+
+  # ==========================================
+  # SPRING BOOT BACKEND INSTANCE 1
+  # ==========================================
+  app-node-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: messenger_app_1
+    environment:
+      - SERVER_PORT=8080
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_DATA_MONGODB_URI=${SPRING_DATA_MONGODB_URI}
+      - SPRING_REDIS_HOST=${SPRING_REDIS_HOST}
+      - SPRING_REDIS_PORT=${SPRING_REDIS_PORT}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - messenger-network
+    restart: always
+
+  # ==========================================
+  # SPRING BOOT BACKEND INSTANCE 2
+  # ==========================================
+  app-node-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: messenger_app_2
+    environment:
+      - SERVER_PORT=8080
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_DATA_MONGODB_URI=${SPRING_DATA_MONGODB_URI}
+      - SPRING_REDIS_HOST=${SPRING_REDIS_HOST}
+      - SPRING_REDIS_PORT=${SPRING_REDIS_PORT}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - messenger-network
+    restart: always
+
+  # ==========================================
+  # RELATIONAL DATABASE (PostgreSQL)
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: messenger_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - messenger-network
+    restart: always
+
+  # ==========================================
+  # NOSQL DATABASE (MongoDB)
+  # ==========================================
+  mongodb:
+    image: mongo:6.0
+    container_name: messenger_mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - messenger-network
+    restart: always
+
+  # ==========================================
+  # CACHE & PUB/SUB BROKER (Redis)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: messenger_redis
+    # Thuật toán Eviction: allkeys-lru (Tự xóa keys ít dùng nhất khi vượt quá 256MB)
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - messenger-network
+    restart: always
+
+  # ==========================================
+  # OBJECT STORAGE (MinIO)
+  # ==========================================
+  minio:
+    image: minio/minio:RELEASE.2023-09-04T19-57-37Z
+    container_name: messenger_minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000" # API Port
+      - "9001:9001" # Web Console Port (Giao diện quản trị)
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - messenger-network
+    restart: always
+
+  # Tự động tạo Bucket 'chat-media' công khai sau khi MinIO bật
+  minio-init:
+    image: minio/mc:RELEASE.2023-08-08T18-20-30Z
+    container_name: messenger_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc config host add myminio ${MINIO_ENDPOINT} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}) do echo 'Waiting for MinIO...'; sleep 1; done;
+      /usr/bin/mc mb --ignore-existing myminio/chat-media;
+      /usr/bin/mc anonymous set download myminio/chat-media;
+      exit 0;
+      "
+    networks:
+      - messenger-network
+
+  # ==========================================
+  # NUXT FRONTEND
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: messenger_frontend
+    environment:
+      - NODE_ENV=production
+      - NUXT_PUBLIC_API_BASE=/api
+    depends_on:
+      - app-node-1
+      - app-node-2
+    networks:
+      - messenger-network
+    restart: always
+
+networks:
+  messenger-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
