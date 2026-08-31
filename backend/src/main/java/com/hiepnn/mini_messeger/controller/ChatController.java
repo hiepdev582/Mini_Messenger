@@ -1,9 +1,7 @@
 package com.hiepnn.mini_messeger.controller;
 
 import com.hiepnn.mini_messeger.model.ChatMessage;
-import com.hiepnn.mini_messeger.repository.ChatMessageRepository;
 import com.hiepnn.mini_messeger.service.ChatService;
-import com.hiepnn.mini_messeger.service.PresenceService;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -20,17 +18,11 @@ import java.util.List;
 @Controller
 public class ChatController {
     private final ChatService chatService;
-    private final ChatMessageRepository messageRepository;
-    private final PresenceService presenceService;
     private final SimpMessagingTemplate messagingTemplate;
 
     public ChatController(ChatService chatService,
-                          ChatMessageRepository messageRepository,
-                          PresenceService presenceService,
                           SimpMessagingTemplate messagingTemplate) {
         this.chatService = chatService;
-        this.messageRepository = messageRepository;
-        this.presenceService = presenceService;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -48,10 +40,7 @@ public class ChatController {
 
     @GetMapping("/api/chat/history")
     public ResponseEntity<List<ChatMessage>> getChatHistory(@RequestParam Long senderId, @RequestParam Long recipientId) {
-        List<ChatMessage> history = messageRepository.findBySenderIdAndRecipientIdOrSenderIdAndRecipientIdOrderByIdAsc(
-                senderId, recipientId, recipientId, senderId
-        );
-        return ResponseEntity.ok(history);
+        return ResponseEntity.ok(chatService.getChatHistory(senderId, recipientId));
     }
 
     @EventListener
@@ -60,11 +49,10 @@ public class ChatController {
         List<String> userIdList = headers.getNativeHeader("userId");
         if (userIdList != null && !userIdList.isEmpty()) {
             Long userId = Long.valueOf(userIdList.get(0));
-            // Register socket session metadata attributes
             if (headers.getSessionAttributes() != null) {
                 headers.getSessionAttributes().put("userId", userId);
             }
-            presenceService.setOnline(userId);
+            chatService.handleSessionConnect(userId);
         }
     }
 
@@ -73,9 +61,7 @@ public class ChatController {
         SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.wrap(event.getMessage());
         if (headers.getSessionAttributes() != null) {
             Long userId = (Long) headers.getSessionAttributes().get("userId");
-            if (userId != null) {
-                presenceService.setOffline(userId);
-            }
+            chatService.handleSessionDisconnect(userId);
         }
     }
 }
