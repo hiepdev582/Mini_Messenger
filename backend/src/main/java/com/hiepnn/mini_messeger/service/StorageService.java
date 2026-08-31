@@ -11,7 +11,8 @@ import java.util.UUID;
 @Service
 public class StorageService {
     private final MinioClient minioClient;
-    private static final String BUCKET_NAME = "chat-media";
+    @Value("${minio.bucket-name:chat-media}")
+    private String bucketName;
 
     @Value("${minio.endpoint}")
     private String minioEndpoint;
@@ -26,7 +27,7 @@ public class StorageService {
             try (InputStream is = file.getInputStream()) {
                 minioClient.putObject(
                         PutObjectArgs.builder()
-                                .bucket(BUCKET_NAME)
+                                .bucket(bucketName)
                                 .object(fileName)
                                 .stream(is, file.getSize(), -1)
                                 .contentType(file.getContentType())
@@ -34,7 +35,7 @@ public class StorageService {
                 );
             }
             // Return public accessible url (since chat-media bucket has download policy)
-            return minioEndpoint + "/" + BUCKET_NAME + "/" + fileName;
+            return minioEndpoint + "/" + bucketName + "/" + fileName;
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload file to MinIO", e);
         }
