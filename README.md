@@ -22,7 +22,7 @@ sequenceDiagram
     Note over UserA, UserB: Luồng gửi tin nhắn thời gian thực
     UserA->>ServerA: Gửi tin nhắn qua STOMP khung SEND (WebSocket)
     Note over ServerA: Tạo Message ID<br/>(Snowflake / ULID)
-    
+
     rect rgb(240, 248, 255)
         Note over ServerA, DB: Lưu trữ & Xử lý bất đồng bộ
         ServerA->>DB: Lưu tin nhắn mới vào MongoDB
@@ -43,17 +43,17 @@ sequenceDiagram
 
 ## 🛠️ Công Nghệ Sử Dụng (Technology Stack)
 
-| Thành phần         | Công nghệ                         | Vai trò & Lý do lựa chọn                                                                                                                  |
-| :----------------- | :-------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Frontend**       | **Nuxt** (Vue.js Framework)       | Rendering giao diện phía client (SSR/SPA), tối ưu SEO và tốc độ tải trang ban đầu.                                                        |
-| **Backend**        | **SpringBoot** (Java)             | Đảm bảo tính ổn định, xử lý logic nghiệp vụ mạnh mẽ và hỗ trợ WebSocket STOMP tự nhiên.                                                    |
-| **Networking**     | **Standard WebSocket + STOMP**    | Giao thức nhắn tin thời gian thực nhẹ, hướng đối tượng (Message-oriented) với cấu trúc khung (frame) rõ ràng (CONNECT, SEND, SUBSCRIBE...).|
-| **Load Balancing** | **NGINX** (IP Hash + Round Robin) | Điều phối tải trọng và giữ kết nối WebSocket (Sticky Sessions qua IP Hash).                                                               |
-| **Databases**      | **PostgreSQL** & **MongoDB**      | **PostgreSQL**: Dữ liệu quan hệ (User, Friendships). <br>**MongoDB**: Lưu trữ tin nhắn phi cấu trúc, ghi nhanh.                           |
-| **Storage / CDN**  | **MinIO** (Object Storage) + CDN  | Lưu trữ tập tin đa phương tiện (ảnh, video, files) và tối ưu hóa tốc độ phân phối qua CDN.                                                |
-| **Message Broker** | **Redis Pub/Sub**                 | Định tuyến tin nhắn tức thời và phát tán sự kiện giữa các WebSocket server node.                                                          |
-| **Cache**          | **Redis**                         | Tăng tốc độ truy xuất, quản lý trạng thái hiện diện và bảng định tuyến kết nối.                                                           |
-| **Container**      | **Docker & Docker Compose**       | Nhất quán môi trường phát triển, đóng gói và triển khai dễ dàng.                                                                          |
+| Thành phần         | Công nghệ                         | Vai trò & Lý do lựa chọn                                                                                                                    |
+| :----------------- | :-------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Frontend**       | **Nuxt** (Vue.js Framework)       | Rendering giao diện phía client (SSR/SPA), tối ưu SEO và tốc độ tải trang ban đầu.                                                          |
+| **Backend**        | **SpringBoot** (Java)             | Đảm bảo tính ổn định, xử lý logic nghiệp vụ mạnh mẽ và hỗ trợ WebSocket STOMP tự nhiên.                                                     |
+| **Networking**     | **Standard WebSocket + STOMP**    | Giao thức nhắn tin thời gian thực nhẹ, hướng đối tượng (Message-oriented) với cấu trúc khung (frame) rõ ràng (CONNECT, SEND, SUBSCRIBE...). |
+| **Load Balancing** | **NGINX** (IP Hash + Round Robin) | Điều phối tải trọng và giữ kết nối WebSocket (Sticky Sessions qua IP Hash).                                                                 |
+| **Databases**      | **PostgreSQL** & **MongoDB**      | **PostgreSQL**: Dữ liệu quan hệ (User, Friendships). <br>**MongoDB**: Lưu trữ tin nhắn phi cấu trúc, ghi nhanh.                             |
+| **Storage / CDN**  | **MinIO** (Object Storage) + CDN  | Lưu trữ tập tin đa phương tiện (ảnh, video, files) và tối ưu hóa tốc độ phân phối qua CDN.                                                  |
+| **Message Broker** | **Redis Pub/Sub**                 | Định tuyến tin nhắn tức thời và phát tán sự kiện giữa các WebSocket server node.                                                            |
+| **Cache**          | **Redis**                         | Tăng tốc độ truy xuất, quản lý trạng thái hiện diện và bảng định tuyến kết nối.                                                             |
+| **Container**      | **Docker & Docker Compose**       | Nhất quán môi trường phát triển, đóng gói và triển khai dễ dàng.                                                                            |
 
 ---
 
@@ -83,7 +83,7 @@ Hệ thống sử dụng **Redis** với các cấu hình chiến lược và ki
 
 Để đảm bảo tin nhắn được đồng bộ nhất quán trên toàn bộ các cụm server mà không phụ thuộc vào khóa tự tăng (Auto-increment) của cơ sở dữ liệu:
 
-- Hệ thống áp dụng thuật toán **Snowflake (Twitter Snowflake)** hoặc **ULID** để sinh ID dạng **64-bit**.
+- Hệ thống áp dụng thuật toán **Snowflake (Twitter Snowflake)** để sinh ID dạng **64-bit**.
 - Các ID được tạo ra đảm bảo:
   - **Duy nhất (Unique)** trên toàn hệ thống phân tán.
   - **Sắp xếp theo thời gian (Time-sortable)** giúp client dễ dàng sắp xếp thứ tự hiển thị tin nhắn dựa vào ID mà không cần so sánh timestamp chi tiết.
