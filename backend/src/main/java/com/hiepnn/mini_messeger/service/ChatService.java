@@ -12,6 +12,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
@@ -69,6 +70,24 @@ public class ChatService {
 
         // Return copy for sender feedback loop
         return savedMessage;
+    }
+
+    public List<ChatMessage> getChatHistory(Long senderId, Long recipientId) {
+        return messageRepository.findBySenderIdAndRecipientIdOrSenderIdAndRecipientIdOrderByIdAsc(
+                senderId, recipientId, recipientId, senderId
+        );
+    }
+
+    public void handleSessionConnect(Long userId) {
+        if (userId != null) {
+            presenceService.setOnline(userId);
+        }
+    }
+
+    public void handleSessionDisconnect(Long userId) {
+        if (userId != null) {
+            presenceService.setOffline(userId);
+        }
     }
 
     // Dynamic listener method matching adaptation reflection signature
