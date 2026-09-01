@@ -106,7 +106,18 @@
     >
       <div class="modal-content glass-panel">
         <h3>Tìm kiếm & Kết bạn</h3>
-        <p class="modal-desc">Nhập ID hoặc chọn người dùng từ danh sách</p>
+        <p class="modal-desc">Tìm kiếm bạn bè theo tên hoặc tên tài khoản</p>
+
+        <!-- Search Input -->
+        <div class="search-input-wrap">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Nhập tên hiển thị hoặc @username..."
+            class="modal-search-input"
+            @input="onSearchInput"
+          />
+        </div>
 
         <div class="available-users-list">
           <div
@@ -116,7 +127,7 @@
           >
             <div class="available-user-info">
               <strong>{{ user.displayName || user.username }}</strong>
-              <small>@{{ user.username }} (ID: {{ user.id }})</small>
+              <small>@{{ user.username }}</small>
             </div>
             <button
               class="glow-btn btn-sm"
@@ -134,6 +145,10 @@
               }}
             </button>
           </div>
+
+          <div v-if="allUsers.length === 0" class="empty-search">
+            <p>Không tìm thấy người dùng phù hợp.</p>
+          </div>
         </div>
 
         <div class="modal-actions">
@@ -150,12 +165,15 @@ import { useAuth } from "../composables/useAuth";
 import { useChat } from "../composables/useChat";
 
 const { currentUser, logout } = useAuth();
-const { friends, activeFriend, selectFriend, addFriend, disconnectSocket } =
+const { friends, activeFriend, selectFriend, addFriend, fetchFriends, disconnectSocket } =
   useChat();
 const config = useRuntimeConfig();
 
 const showAddModal = ref(false);
+const searchQuery = ref("");
 const allUsers = ref<any[]>([]);
+let searchTimeout: any = null;
+let presencePollInterval: any = null;
 
 const userInitials = computed(() => {
   if (!currentUser.value) return "?";
@@ -167,13 +185,23 @@ const isAlreadyFriend = (userId: number) => {
   return friends.value.some((f) => f.id === userId);
 };
 
-const fetchAllUsers = async () => {
+const fetchUsers = async (query = "") => {
   try {
-    const data = await $fetch<any[]>(`${config.public.apiBase}/auth/users`);
+    const url = query.trim()
+      ? `${config.public.apiBase}/auth/users?query=${encodeURIComponent(query.trim())}`
+      : `${config.public.apiBase}/auth/users`;
+    const data = await $fetch<any[]>(url);
     allUsers.value = data;
   } catch (err) {
     console.error("Failed to fetch users", err);
   }
+};
+
+const onSearchInput = () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    fetchUsers(searchQuery.value);
+  }, 300);
 };
 
 const onAddFriend = async (friendId: number) => {
@@ -185,12 +213,18 @@ const onAddFriend = async (friendId: number) => {
 };
 
 const handleLogout = () => {
+  if (presencePollInterval) clearInterval(presencePollInterval);
   disconnectSocket();
   logout();
 };
 
 onMounted(() => {
-  fetchAllUsers();
+  fetchUsers();
+  fetchFriends();
+  // Poll presence periodically (every 4 seconds) to update online badge in real time
+  presencePollInterval = setInterval(() => {
+    fetchFriends();
+  }, 4000);
 });
 </script>
 
@@ -409,6 +443,33 @@ onMounted(() => {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 1.5rem;
+}
+
+.search-input-wrap {
+  margin-bottom: 1rem;
+}
+
+.modal-search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  background: var(--bg-primary);
+  color: var(--text-main);
+  outline: none;
+  font-size: 0.9rem;
+}
+
+.modal-search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.empty-search {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .available-users-list {

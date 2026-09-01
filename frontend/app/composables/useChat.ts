@@ -65,8 +65,13 @@ export const useChat = () => {
           activeFriend.value &&
           (payload.senderId === activeFriend.value.id || payload.recipientId === activeFriend.value.id)
         ) {
-          // Avoid duplicate by Snowflake ID
-          if (!messages.value.some((m) => m.id === payload.id)) {
+          // If sender receives their own message confirmation, replace the optimistic message (matching content & senderId)
+          const optimisticIdx = messages.value.findIndex(
+            (m) => m.senderId === payload.senderId && m.recipientId === payload.recipientId && m.content === payload.content && (!m.id || m.id > 1000000000000 && m.id < 2000000000000)
+          );
+          if (optimisticIdx !== -1) {
+            messages.value[optimisticIdx] = payload;
+          } else if (!messages.value.some((m) => m.id === payload.id)) {
             messages.value.push(payload);
           }
         }
@@ -143,12 +148,18 @@ export const useChat = () => {
       return;
     }
 
+    // Optimistic message with temporary client ID
+    const tempId = Date.now();
     const payload: ChatMessage = {
+      id: tempId,
       senderId: currentUser.value.id,
       recipientId: activeFriend.value.id,
       content,
       mediaUrl,
+      timestamp: Date.now(),
     };
+
+    messages.value.push(payload);
 
     stompClient.value.publish({
       destination: '/app/chat.sendMessage',
