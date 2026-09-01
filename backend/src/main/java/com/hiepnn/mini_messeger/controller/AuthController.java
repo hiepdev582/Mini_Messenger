@@ -36,8 +36,8 @@ public class AuthController {
     }
 
     @GetMapping("/users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAllUsers());
+    public ResponseEntity<List<User>> searchUsers(@RequestParam(required = false) String query) {
+        return ResponseEntity.ok(userService.searchUsers(query));
     }
 
     @PostMapping("/friends")
