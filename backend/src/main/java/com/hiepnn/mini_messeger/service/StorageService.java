@@ -34,8 +34,8 @@ public class StorageService {
                                 .build()
                 );
             }
-            // Return public accessible url (since chat-media bucket has download policy)
-            return minioEndpoint + "/" + bucketName + "/" + fileName;
+            // Return public accessible CDN / Proxy URL without expiration
+            return "/" + bucketName + "/" + fileName;
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload file to MinIO", e);
         }

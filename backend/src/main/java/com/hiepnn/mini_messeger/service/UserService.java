@@ -7,12 +7,15 @@ import com.hiepnn.mini_messeger.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @Service
 public class UserService {
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final PresenceService presenceService;
+
+    private final BCryptPasswordEncoder passwordEncoder = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
 
     public UserService(UserRepository userRepository,
                        FriendshipRepository friendshipRepository,
@@ -26,19 +29,23 @@ public class UserService {
         if (userRepository.findByUsername(user.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists");
         }
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
 
     public User login(String username, String password) {
         Optional<User> existingUser = userRepository.findByUsername(username);
-        if (existingUser.isEmpty() || !existingUser.get().getPassword().equals(password)) {
+        if (existingUser.isEmpty() || !passwordEncoder.matches(password, existingUser.get().getPassword())) {
             throw new IllegalArgumentException("Invalid credentials");
         }
         return existingUser.get();
     }
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    public List<User> searchUsers(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return userRepository.findAll();
+        }
+        return userRepository.searchUsers(query.trim());
     }
 
     @Transactional
